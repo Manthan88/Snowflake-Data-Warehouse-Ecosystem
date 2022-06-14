@@ -2,6 +2,7 @@
 A data warehouse ecosystem for retail stores 
 
 This repository includes and conveys the journey of creating a Data Warehouse solution for sample stores 10 & 21 to store pertinent data and use the analytical capabilities of a data warehouse to analyze current store performance, resulting in insights and trends that can be used to make recommendations for enhancing store productivity and assisst in organizational business expansion.
+
 This project is developed using Snowflake and Tableau with SQL being the core programming language.
 
 
