@@ -22,4 +22,4 @@ The visualizations were built on the folowing:
 - Assess product sales by day of the week at stores 10 and 21. What can we learn about sales trends?
 - Should any new stores be opened? Include all stores in your analysis if necessary. If so, where? Why or why not?
 
-Based on the insights and trends identified via the tableau visualizations, recommendations were given to improve performkance and make business decisions.
+Based on the insights and trends identified via the tableau visualizations, recommendations were made to improve performkance and make business decisions.
