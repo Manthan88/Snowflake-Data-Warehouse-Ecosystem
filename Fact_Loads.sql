@@ -1,0 +1,106 @@
+
+CREATE OR REPLACE TABLE FACT_SALES (
+  SalesHeaderID INT NOT NULL,
+  SalesDetailID INT NOT NULL,
+  DimProductID INT CONSTRAINT FK_ProductID FOREIGN KEY REFERENCES DIM_PRODUCT(DimProductID),
+  DimStoreID INT CONSTRAINT FK_StoreID FOREIGN KEY REFERENCES DIM_STORE(DimStoreID),
+  DimResellerID INT CONSTRAINT FK_ResellerID FOREIGN KEY REFERENCES DIM_RESELLER(DimResellerID),
+  DimCustomerID INT CONSTRAINT FK_CustomerID FOREIGN KEY REFERENCES DIM_CUSTOMER(DimCustomerID),
+  DimChannelID INT CONSTRAINT FK_ChannelID FOREIGN KEY REFERENCES DIM_CHANNEL(DimChannelID),
+  DATE_PKEY NUMBER(9) CONSTRAINT FK_DATE FOREIGN KEY REFERENCES DIM_DATE(DATE_PKEY),
+  DimLocationID INT CONSTRAINT FK_LocationID FOREIGN KEY REFERENCES DIM_LOCATION(DimLocationID),
+  Sale_Amount NUMERIC(8,2),
+  Sale_Quantity INT,
+  Sale_Unit_Price NUMERIC(8,2),
+  Sale_Extended_Cost NUMERIC(8,2),
+  Sale_Total_Profit NUMERIC(8,2)
+)
+
+INSERT INTO FACT_SALES(
+  SalesHeaderID,
+  SalesDetailID,
+  DimProductID,
+  DimStoreID,
+  DimResellerID,
+  DimCustomerID,
+  DimChannelID,
+  DATE_PKEY,
+  DimLocationID,
+  Sale_Amount,
+  Sale_Quantity,
+  Sale_Unit_Price,
+  Sale_Extended_Cost,
+  Sale_Total_Profit 
+)
+SELECT SH.SALESHEADERID,
+       SD.SALESDETAILID,
+       DP.DimProductID,
+       NVL(DS.DimStoreID, -1) AS DimStoreID,
+       NVL(DR.DimResellerID, -1) AS DimResellerID,
+       NVL(DC.DimCustomerID, -1) AS DimCustomerID,
+       DCH.DimChannelID,
+       CAST(REPLACE(REPLACE(CAST(SH.DATE AS DATE), '00', '20'), '-', '') AS NUMBER(9)) AS DATE_PKEY,
+       COALESCE(DS.DimLocationID, DC.DimLocationID, DR.DimLocationID, -1) AS DimLocationID,
+       SD.SALESAMOUNT as Sale_Amount,
+       SD.SALESQUANTITY as Sale_Quantity,
+       CASE WHEN DR.DimResellerID IS NOT NULL THEN DP.ProductWholesalePrice ELSE DP.ProductRetailPrice END AS Sale_Unit_Price,
+       ROUND(DP.ProductCost * Sale_Quantity,2) as Sale_Extended_Cost,
+       ROUND(Sale_Amount - Sale_Extended_Cost,2) AS Sale_Total_Profit
+FROM STAGE_SALESHEADER AS SH
+INNER JOIN STAGE_SALESDETAIL AS SD ON SH.SALESHEADERID = SD.SALESHEADERID
+INNER JOIN DIM_PRODUCT AS DP ON SD.PRODUCTID = DP.DimProductID
+INNER JOIN DIM_CHANNEL AS DCH ON SH.CHANNELID = DCH.DimChannelID
+LEFT JOIN DIM_STORE AS DS ON SH.STOREID = DS.DimStoreID
+LEFT JOIN DIM_RESELLER AS DR ON SH.RESELLERID = DR.SourceResellerID
+LEFT JOIN DIM_CUSTOMER AS DC ON SH.CUSTOMERID = DC.SourceCustomerID
+
+
+
+CREATE OR REPLACE TABLE FACT_PRODUCT_SALES_TARGET(
+  DimProductID INT CONSTRAINT FK_ProdID FOREIGN KEY REFERENCES DIM_PRODUCT(DimProductID),
+  DATE_PKEY NUMBER(9) CONSTRAINT FK_DATEKEY FOREIGN KEY REFERENCES DIM_DATE(DATE_PKEY),
+  Product_Target_Sales_Quantity NUMERIC(8,2)
+)
+
+INSERT INTO FACT_PRODUCT_SALES_TARGET(
+  DimProductID,
+  DATE_PKEY,
+  Product_Target_Sales_Quantity
+)
+SELECT DP.DimProductID, DD.DATE_PKEY, Round(STDP.SalesQuantityTarget/ 365, 2) AS Product_Target_Sales_Quantity
+FROM DIM_PRODUCT AS DP 
+INNER JOIN STAGE_TARGETDATAPRODUCT AS STDP ON DP.DimProductID = STDP.PRODUCTID
+INNER JOIN DIM_DATE AS DD ON STDP.YEAR = DD.YEAR
+
+
+CREATE TABLE FACT_SRC_SALES_TARGET(
+  DimStoreID INT CONSTRAINT FK_StrID FOREIGN KEY REFERENCES DIM_STORE(DimStoreID),
+  DimResellerID INT CONSTRAINT FK_ResellID FOREIGN KEY REFERENCES DIM_RESELLER(DimResellerID),
+  DimChannelID INT CONSTRAINT FK_ChnnlID FOREIGN KEY REFERENCES DIM_CHANNEL(DimChannelID),
+  DATE_PKEY NUMBER(9) CONSTRAINT FK_DATEID FOREIGN KEY REFERENCES DIM_DATE(DATE_PKEY),
+  SALES_TARGET_AMOUNT NUMBER(15,2)
+)
+
+INSERT INTO FACT_SRC_SALES_TARGET(
+  DimStoreID,
+  DimResellerID,
+  DimChannelID,
+  DATE_PKEY,
+  SALES_TARGET_AMOUNT
+)
+SELECT NVL(DS.DimStoreID, -1) AS DimStoreID,
+       NVL(DR.DimResellerID, -1) AS DimResellerID,
+       DCH.DimChannelID,
+       DD.DATE_PKEY,
+    	ROUND(STDC.TARGETSALESAMOUNT/ 365,2) AS SALES_TARGET_AMOUNT
+FROM STAGE_TARGETDATACHANNEL AS STDC
+LEFT JOIN DIM_STORE AS DS ON DS.StoreNumber = CASE WHEN STDC.TARGETNAME = 'Store Number 5' THEN 5
+                                                                        WHEN STDC.TARGETNAME = 'Store Number 8' THEN 8
+                                                                        WHEN STDC.TARGETNAME = 'Store Number 10' THEN 10
+                                                                        WHEN STDC.TARGETNAME = 'Store Number 21' THEN 21
+                                                                        WHEN STDC.TARGETNAME = 'Store Number 34' THEN 34
+                                                                        WHEN STDC.TARGETNAME = 'Store Number 39' THEN 39 END
+LEFT JOIN DIM_RESELLER AS DR ON DR.ResellerName = STDC.TARGETNAME
+INNER JOIN DIM_CHANNEL AS DCH ON DCH.ChannelName = CASE WHEN STDC.CHANNELNAME = 'Online' THEN 'On-line' ELSE STDC.CHANNELNAME END
+LEFT JOIN DIM_DATE AS DD ON STDC.YEAR = DD.YEAR
+
